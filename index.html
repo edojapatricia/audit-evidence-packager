@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AuditPack — Evidence Mapper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple:       #4B0EFF;
+      --purple-mid:   #6B3FFF;
+      --purple-soft:  rgba(75,14,255,.08);
+      --purple-glow:  rgba(75,14,255,.18);
+      --sidebar-bg:   #09061A;
+      --sidebar-line: rgba(255,255,255,.06);
+      --bg:           #F2F2F7;
+      --card:         #FFFFFF;
+      --border:       rgba(0,0,0,.07);
+      --border-md:    rgba(0,0,0,.11);
+      --text:         #0A0A14;
+      --text-2:       #3B3B52;
+      --text-3:       #7B7B96;
+      --text-4:       #ADADC4;
+      --green:        #00B87A;
+      --green-soft:   rgba(0,184,122,.10);
+      --amber:        #F59E0B;
+      --amber-soft:   rgba(245,158,11,.10);
+      --red:          #EF4444;
+      --red-soft:     rgba(239,68,68,.10);
+      --radius-sm:    8px;
+      --radius:       14px;
+      --radius-lg:    20px;
+      --shadow-xs:    0 1px 4px rgba(0,0,0,.06);
+      --shadow-sm:    0 2px 12px rgba(0,0,0,.07);
+      --shadow:       0 4px 24px rgba(0,0,0,.09);
+      --shadow-lg:    0 8px 40px rgba(0,0,0,.12);
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+    }
+
+    /* ─────────────────────────────────────── SIDEBAR */
+    aside {
+      width: 232px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* dot-pattern glow — matches the halftone globe texture in template */
+    aside::before {
+      content: '';
+      position: absolute;
+      bottom: -60px;
+      left: -60px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(75,14,255,.35) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .brand {
+      padding: 26px 20px 22px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border-bottom: 1px solid var(--sidebar-line);
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      background: var(--purple);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-copy span {
+      font-size: 10.5px;
+      color: rgba(255,255,255,.32);
+      font-weight: 400;
+      letter-spacing: .2px;
+    }
+
+    .nav-group { padding: 22px 14px 6px; }
+
+    .nav-group-label {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.1px;
+      color: rgba(255,255,255,.22);
+      padding: 0 8px;
+      margin-bottom: 7px;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 10px;
+      border: none;
+      background: none;
+      border-radius: var(--radius-sm);
+      color: rgba(255,255,255,.38);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+      text-align: left;
+      margin-bottom: 1px;
+    }
+
+    .nav-btn:hover  { background: rgba(255,255,255,.05); color: rgba(255,255,255,.72); }
+    .nav-btn.active { background: var(--purple); color: #fff; }
+
+    .nav-icon { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .nav-btn.active .nav-icon { opacity: 1; }
+
+    .nav-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(255,255,255,.12);
+      color: rgba(255,255,255,.6);
+      padding: 1px 7px;
+      border-radius: 20px;
+    }
+
+    .nav-btn.active .nav-badge { background: rgba(255,255,255,.22); color: #fff; }
+
+    .sidebar-spacer { flex: 1; }
+
+    .sidebar-bottom {
+      padding: 14px;
+      border-top: 1px solid var(--sidebar-line);
+    }
+
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: var(--radius-sm);
+      cursor: default;
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .user-info strong { display: block; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-info span   { font-size: 10.5px; color: rgba(255,255,255,.3); }
+
+    /* ─────────────────────────────────────── MAIN */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* TOPBAR */
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      height: 58px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+
+    .topbar-heading {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+
+    .topbar-sep { width: 1px; height: 20px; background: var(--border-md); }
+
+    .fw-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: .2px;
+    }
+
+    .fw-tag.iso  { background: var(--purple-soft); color: var(--purple); border: 1px solid var(--purple-glow); }
+    .fw-tag.soc  { background: rgba(107,63,255,.08); color: var(--purple-mid); border: 1px solid rgba(107,63,255,.2); }
+    .fw-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    .topbar-spacer { flex: 1; }
+
+    /* ─────────────────────────────────────── CONTENT */
+    .content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ─────────────────────────────────────── LEFT PANEL */
+    .left {
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 6px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 14px 4px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all .14s;
+      letter-spacing: .1px;
+    }
+
+    .tab-btn.active { color: var(--purple); border-bottom-color: var(--purple); }
+
+    .pane { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .pane.active { display: flex; }
+
+    /* Form */
+    .form-scroll { flex: 1; overflow-y: auto; padding: 22px 20px; display: flex; flex-direction: column; gap: 18px; }
+
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      margin-bottom: 7px;
+    }
+
+    .field-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border-md);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+      resize: none;
+    }
+
+    .field-input::placeholder { color: var(--text-4); }
+
+    .field-input:focus {
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px var(--purple-soft);
+      background: #fff;
+    }
+
+    textarea.field-input { min-height: 136px; line-height: 1.65; }
+
+    /* Framework toggles */
+    .fw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .fw-toggle {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 11px 13px;
+      background: var(--bg);
+      border: 1.5px solid var(--border-md);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all .14s;
+      user-select: none;
+    }
+
+    .fw-toggle input { display: none; }
+
+    .fw-toggle:has(input:checked) {
+      border-color: var(--purple);
+      background: var(--purple-soft);
+    }
+
+    .fw-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border-md);
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all .14s;
+    }
+
+    .fw-toggle:has(input:checked) .fw-check {
+      background: var(--purple);
+      border-color: var(--purple);
+    }
+
+    .fw-check svg { display: none; }
+    .fw-toggle:has(input:checked) .fw-check svg { display: block; }
+
+    .fw-text-main  { font-size: 12.5px; font-weight: 600; color: var(--text); display: block; }
+    .fw-text-sub   { font-size: 10.5px; color: var(--text-3); margin-top: 1px; display: block; font-family: 'JetBrains Mono', monospace; }
+
+    /* Actions */
+    .form-actions { display: flex; flex-direction: column; gap: 8px; }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 18px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      letter-spacing: .1px;
+    }
+
+    .btn-primary {
+      background: var(--purple);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(75,14,255,.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #3D00E8;
+      box-shadow: 0 4px 20px rgba(75,14,255,.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled { opacity: .42; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-ghost {
+      background: var(--bg);
+      color: var(--text-2);
+      border: 1.5px solid var(--border-md);
+    }
+
+    .btn-ghost:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); background: var(--purple-soft); }
+    .btn-ghost:disabled { opacity: .42; cursor: not-allowed; }
+
+    .btn-link {
+      background: none;
+      color: var(--text-3);
+      border: none;
+      font-size: 12px;
+      padding: 8px 12px;
+    }
+
+    .btn-link:hover { color: var(--red); }
+
+    /* Library pane */
+    .lib-scroll { flex: 1; overflow-y: auto; padding: 18px 18px 0; }
+
+    .lib-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .lib-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .count-badge {
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--purple-soft);
+      color: var(--purple);
+      padding: 2px 9px;
+      border-radius: 20px;
+      border: 1px solid var(--purple-glow);
+    }
+
+    .ev-card {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 13px 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all .14s;
+      position: relative;
+    }
+
+    .ev-card:hover { border-color: var(--purple-mid); background: #fff; box-shadow: var(--shadow-xs); }
+
+    .ev-card-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+      padding-right: 22px;
+    }
+
+    .ev-card-preview {
+      font-size: 11.5px;
+      color: var(--text-3);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .ev-del {
+      position: absolute;
+      top: 11px; right: 11px;
+      width: 18px; height: 18px;
+      border-radius: 4px;
+      border: none;
+      background: none;
+      color: var(--text-4);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .13s;
+    }
+
+    .ev-del:hover { background: var(--red-soft); color: var(--red); }
+
+    .lib-empty {
+      text-align: center;
+      padding: 48px 20px;
+    }
+
+    .lib-empty-icon { color: var(--text-4); margin-bottom: 14px; }
+    .lib-empty p { font-size: 13px; font-weight: 500; color: var(--text-3); }
+    .lib-empty small { font-size: 11.5px; color: var(--text-4); display: block; margin-top: 4px; }
+
+    .lib-footer {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+    }
+
+    /* ─────────────────────────────────────── RIGHT PANEL */
+    .right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+      min-width: 0;
+    }
+
+    .result-bar {
+      height: 52px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 26px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .result-bar-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      letter-spacing: -0.2px;
+    }
+
+    .icon-btn {
+      width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border-md);
+      background: var(--card);
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .13s;
+      flex-shrink: 0;
+    }
+
+    .icon-btn:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-soft); }
+
+    .text-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border-md);
+      background: var(--card);
+      color: var(--text-2);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .13s;
+    }
+
+    .text-btn:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-soft); }
+
+    /* Results scroll */
+    .results-scroll { flex: 1; overflow-y: auto; padding: 24px 26px; }
+
+    /* ─── Welcome state */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      padding: 40px 20px;
+      gap: 0;
+    }
+
+    .welcome-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 48px 52px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+
+    .welcome-icon-wrap {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 4px 20px rgba(75,14,255,.35);
+    }
+
+    .welcome-card h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    .welcome-card p {
+      font-size: 13.5px;
+      color: var(--text-3);
+      line-height: 1.65;
+      margin-bottom: 28px;
+    }
+
+    .steps {
+      display: flex;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .step {
+      flex: 1;
+      background: var(--bg);
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .step-n {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--purple);
+      margin-bottom: 4px;
+    }
+
+    .step-t {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-2);
+      line-height: 1.4;
+    }
+
+    /* ─── Loader */
+    .loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 18px;
+      text-align: center;
+    }
+
+    .spinner-ring {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid var(--border-md);
+      border-top-color: var(--purple);
+      animation: spin .75s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loader-label { font-size: 13.5px; font-weight: 500; color: var(--text-3); }
+
+    .stream-preview {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-4);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow-y: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      max-width: 500px;
+      width: 100%;
+      text-align: left;
+    }
+
+    /* ─── Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-xs);
+    }
+
+    .stat-icon {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+
+    .stat-icon.purple { background: var(--purple-soft); }
+    .stat-icon.green  { background: var(--green-soft);  }
+    .stat-icon.amber  { background: var(--amber-soft);  }
+    .stat-icon.red    { background: var(--red-soft);    }
+
+    .stat-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+
+    .stat-val.green  { color: var(--green); }
+    .stat-val.amber  { color: var(--amber); }
+    .stat-val.red    { color: var(--red);   }
+    .stat-val.purple { color: var(--purple); }
+
+    .stat-lbl { font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+
+    /* ─── Summary card */
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      box-shadow: var(--shadow-xs);
+      margin-bottom: 12px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 14px;
+    }
+
+    .card-header-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-header h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+      flex: 1;
+    }
+
+    .risk-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .risk-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .risk-Low    { background: var(--green-soft); color: var(--green); border: 1px solid rgba(0,184,122,.2); }
+    .risk-Medium { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(245,158,11,.2); }
+    .risk-High   { background: var(--red-soft);   color: var(--red);   border: 1px solid rgba(239,68,68,.2); }
+
+    .summary-text { font-size: 13.5px; color: var(--text-2); line-height: 1.7; }
+
+    .tags-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+
+    .tag {
+      font-size: 10.5px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--bg);
+      border: 1px solid var(--border-md);
+      color: var(--text-3);
+    }
+
+    /* ─── Section divider */
+    .sec-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 22px 0 14px;
+    }
+
+    .sec-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-3);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sec-line { flex: 1; height: 1px; background: var(--border-md); }
+
+    /* ─── Mapping cards grid */
+    .mapping-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 10px;
+    }
+
+    .map-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow-xs);
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      transition: box-shadow .14s, transform .14s;
+    }
+
+    .map-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+
+    .map-card-top { display: flex; align-items: flex-start; gap: 10px; }
+
+    .ctrl-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 4px 9px;
+      border-radius: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .ctrl-id.iso { background: var(--purple-soft); color: var(--purple); border: 1px solid var(--purple-glow); }
+    .ctrl-id.soc { background: rgba(107,63,255,.08); color: var(--purple-mid); border: 1px solid rgba(107,63,255,.18); }
+
+    .ctrl-name { font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.4; flex: 1; }
+
+    .cov-badge {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 9px;
+      border-radius: 20px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .cov-Full         { background: var(--green-soft); color: var(--green); border: 1px solid rgba(0,184,122,.2); }
+    .cov-Partial      { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(245,158,11,.2); }
+    .cov-Insufficient { background: var(--red-soft);   color: var(--red);   border: 1px solid rgba(239,68,68,.2); }
+
+    .progress-track { height: 3px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .progress-fill  { height: 100%; border-radius: 3px; }
+    .progress-fill.Full         { width: 100%; background: var(--green); }
+    .progress-fill.Partial      { width: 55%;  background: var(--amber); }
+    .progress-fill.Insufficient { width: 18%;  background: var(--red);   }
+
+    .map-rationale { font-size: 11.5px; color: var(--text-3); line-height: 1.6; }
+
+    .map-gap {
+      font-size: 11px;
+      padding: 8px 10px;
+      background: var(--amber-soft);
+      border-left: 2px solid var(--amber);
+      border-radius: 0 5px 5px 0;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+
+    /* ─── Recs */
+    .rec-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+
+    .rec-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 13px;
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      font-size: 12.5px;
+      color: var(--text-2);
+      line-height: 1.55;
+    }
+
+    .rec-n {
+      width: 20px; height: 20px;
+      border-radius: 5px;
+      background: var(--purple-soft);
+      color: var(--purple);
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ─── Error */
+    .err-card {
+      background: var(--card);
+      border: 1px solid rgba(239,68,68,.18);
+      border-left: 3px solid var(--red);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--red);
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDEBAR -->
+<aside>
+  <div class="brand">
+    <div class="brand-mark">A</div>
+    <div class="brand-copy">
+      <strong>AuditPack</strong>
+      <span>Evidence Mapper</span>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">[Workspace]</div>
+
+    <button class="nav-btn active" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Dashboard
+    </button>
+
+    <button class="nav-btn" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+      </svg>
+      Evidence Library
+      <span class="nav-badge" id="nav-count">0</span>
+    </button>
+
+    <button class="nav-btn" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      Reports
+    </button>
+
+    <button class="nav-btn" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+      </svg>
+      Controls
+    </button>
+  </div>
+
+  <div class="nav-group" style="margin-top:4px;">
+    <div class="nav-group-label">[Frameworks]</div>
+
+    <button class="nav-btn" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+      </svg>
+      ISO 27001:2022
+    </button>
+
+    <button class="nav-btn" onclick="setNav(this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+      SOC 2 Type II
+    </button>
+  </div>
+
+  <div class="sidebar-spacer"></div>
+
+  <div class="sidebar-bottom">
+    <div class="user-row">
+      <div class="avatar">P</div>
+      <div class="user-info">
+        <strong>Patricia</strong>
+        <span>Compliance Analyst</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════ MAIN -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="topbar-heading">Audit Evidence Packager</span>
+    <div class="topbar-sep"></div>
+    <span class="fw-tag iso"><span class="dot"></span>ISO 27001</span>
+    <span class="fw-tag soc"><span class="dot"></span>SOC 2</span>
+    <div class="topbar-spacer"></div>
+    <button class="text-btn" onclick="clearResults()">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      Clear
+    </button>
+    <button class="text-btn" id="btn-export" onclick="exportResults()" style="display:none;">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export JSON
+    </button>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- LEFT PANEL -->
+    <div class="left">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('add')">Add Evidence</button>
+        <button class="tab-btn" onclick="switchTab('lib')">Library</button>
+      </div>
+
+      <!-- ADD EVIDENCE -->
+      <div class="pane active" id="pane-add">
+        <div class="form-scroll">
+          <div>
+            <label class="field-label">Evidence Name</label>
+            <input type="text" class="field-input" id="ev-name" placeholder="e.g. Access Control Policy v2.3" />
+          </div>
+
+          <div>
+            <label class="field-label">Evidence Content</label>
+            <textarea class="field-input" id="ev-text" placeholder="Paste your artifact — policy excerpts, procedure docs, config exports, audit logs, screenshot descriptions…"></textarea>
+          </div>
+
+          <div>
+            <label class="field-label">Frameworks</label>
+            <div class="fw-grid">
+              <label class="fw-toggle">
+                <input type="checkbox" id="fw-iso" checked />
+                <div class="fw-check">
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5l2.5 2.5L8 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <span class="fw-text-main">ISO 27001</span>
+                  <span class="fw-text-sub">93 controls · 2022</span>
+                </div>
+              </label>
+              <label class="fw-toggle">
+                <input type="checkbox" id="fw-soc2" checked />
+                <div class="fw-check">
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5l2.5 2.5L8 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <span class="fw-text-main">SOC 2</span>
+                  <span class="fw-text-sub">TSC · CC1–CC9</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-analyze" onclick="analyzeEvidence()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Analyze with Claude
+            </button>
+            <button class="btn btn-ghost" onclick="addToLibrary()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 4v16m8-8H4"/></svg>
+              Save to Library
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIBRARY -->
+      <div class="pane" id="pane-lib">
+        <div class="lib-scroll">
+          <div class="lib-header">
+            <span class="lib-title">Evidence Items</span>
+            <span class="count-badge" id="lib-count">0</span>
+          </div>
+          <div id="lib-list">
+            <div class="lib-empty">
+              <div class="lib-empty-icon">
+                <svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              </div>
+              <p>No evidence saved yet.</p>
+              <small>Use "Save to Library" to collect artifacts</small>
+            </div>
+          </div>
+        </div>
+        <div class="lib-footer">
+          <button class="btn btn-primary" id="btn-package" onclick="packageAll()" disabled style="width:100%;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            Package All &amp; Generate Report
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right">
+      <div class="result-bar">
+        <span class="result-bar-title" id="results-title">Analysis Results</span>
+        <button class="icon-btn" onclick="clearResults()" title="Clear">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div>
+
+      <div class="results-scroll" id="results-area">
+        <div class="welcome">
+          <div class="welcome-card">
+            <div class="welcome-icon-wrap">
+              <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+              </svg>
+            </div>
+            <h2>Map evidence to controls</h2>
+            <p>Paste an audit artifact, select your compliance frameworks, and Claude will identify every control it addresses with a coverage assessment.</p>
+            <div class="steps">
+              <div class="step">
+                <div class="step-n">01</div>
+                <div class="step-t">Paste evidence content</div>
+              </div>
+              <div class="step">
+                <div class="step-n">02</div>
+                <div class="step-t">Select frameworks</div>
+              </div>
+              <div class="step">
+                <div class="step-n">03</div>
+                <div class="step-t">Review &amp; export</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  const lib = [];
+  let currentResults = null;
+
+  function setNav(el) {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', (tab === 'add' && i === 0) || (tab === 'lib' && i === 1));
+    });
+    document.getElementById('pane-add').classList.toggle('active', tab === 'add');
+    document.getElementById('pane-lib').classList.toggle('active', tab === 'lib');
+  }
+
+  function getFW() {
+    const fw = [];
+    if (document.getElementById('fw-iso').checked) fw.push('ISO 27001');
+    if (document.getElementById('fw-soc2').checked) fw.push('SOC 2');
+    return fw;
+  }
+
+  function showLoader(msg) {
+    document.getElementById('results-area').innerHTML = `
+      <div class="loader">
+        <div class="spinner-ring"></div>
+        <p class="loader-label">${msg}</p>
+        <div class="stream-preview" id="stream-box"></div>
+      </div>`;
+    document.getElementById('btn-export').style.display = 'none';
+  }
+
+  function appendStream(t) {
+    const el = document.getElementById('stream-box');
+    if (el) { el.textContent += t; el.scrollTop = el.scrollHeight; }
+  }
+
+  async function streamRequest(url, body, onChunk) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Request failed'); }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', full = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let d;
+        try { d = JSON.parse(line.slice(6)); } catch { continue; }
+        if (d.type === 'error') throw new Error(d.message || 'Server error');
+        if (d.type === 'text') { full += d.content; onChunk(d.content); }
+      }
+    }
+    return full;
+  }
+
+  function parseJSON(raw) {
+    // 1. Strip markdown fences if Claude ignored the instruction
+    let text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // 2. Find the outermost { ... } in case there's any stray leading/trailing text
+    const start = text.indexOf('{');
+    const end   = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) {
+      text = text.slice(start, end + 1);
+    }
+
+    if (!text) throw new Error('No JSON object found in response.');
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // Surface a readable error — show the tail of the response so the
+      // user can see whether it was truncated mid-object.
+      const tail = text.length > 300 ? '…' + text.slice(-300) : text;
+      throw new Error(`JSON parse failed: ${e.message}\n\nResponse tail:\n${tail}`);
+    }
+  }
+
+  function mapCard(m) {
+    const iso = (m.framework || '').includes('ISO');
+    const cls = iso ? 'iso' : 'soc';
+    const cov = (m.coverage || 'Partial').replace(/\s/g, '');
+    const gap = m.gaps && m.gaps.trim()
+      ? `<div class="map-gap">&#9888; ${m.gaps}</div>` : '';
+    return `
+      <div class="map-card">
+        <div class="map-card-top">
+          <span class="ctrl-id ${cls}">${m.control_id}</span>
+          <span class="ctrl-name">${m.control_name}</span>
+          <span class="cov-badge cov-${cov}">${cov}</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill ${cov}"></div></div>
+        <p class="map-rationale">${m.rationale}</p>
+        ${gap}
+      </div>`;
+  }
+
+  function renderResults(name, parsed) {
+    currentResults = parsed;
+    const ov      = parsed.overall_coverage || {};
+    const risk    = ov.risk_level || 'Medium';
+    const maps    = parsed.mappings || [];
+    const isoMaps = maps.filter(m => (m.framework||'').includes('ISO'));
+    const socMaps = maps.filter(m => (m.framework||'').includes('SOC'));
+    const full    = maps.filter(m => m.coverage === 'Full').length;
+    const part    = maps.filter(m => m.coverage === 'Partial').length;
+    const insuf   = maps.filter(m => m.coverage === 'Insufficient').length;
+    const isoTags = (ov.iso_27001_controls||[]).map(c=>`<span class="tag">${c}</span>`).join('');
+    const socTags = (ov.soc2_criteria||[]).map(c=>`<span class="tag">${c}</span>`).join('');
+    const recs    = (ov.recommendations||[]);
+
+    document.getElementById('results-title').textContent = name;
+    document.getElementById('btn-export').style.display = '';
+
+    document.getElementById('results-area').innerHTML = `
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#4B0EFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </div>
+          <div class="stat-val purple">${maps.length}</div>
+          <div class="stat-lbl">Controls mapped</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#00B87A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="stat-val green">${full}</div>
+          <div class="stat-lbl">Full coverage</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <div class="stat-val amber">${part}</div>
+          <div class="stat-lbl">Partial coverage</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          </div>
+          <div class="stat-val red">${insuf}</div>
+          <div class="stat-lbl">Gaps identified</div>
+        </div>
+      </div>
+
+      <div class="summary-card">
+        <div class="card-header">
+          <div class="card-header-icon" style="background:var(--purple-soft);">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#4B0EFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h3>Executive Summary</h3>
+          <span class="risk-pill risk-${risk}"><span class="dot"></span>${risk} Risk</span>
+        </div>
+        <p class="summary-text">${parsed.summary || 'Analysis complete.'}</p>
+        ${isoTags ? `<div class="field-label" style="margin-top:14px;margin-bottom:6px;">ISO 27001 Controls</div><div class="tags-row">${isoTags}</div>` : ''}
+        ${socTags ? `<div class="field-label" style="margin-top:12px;margin-bottom:6px;">SOC 2 Criteria</div><div class="tags-row">${socTags}</div>` : ''}
+      </div>
+
+      ${recs.length ? `
+      <div class="summary-card">
+        <div class="card-header">
+          <div class="card-header-icon" style="background:var(--amber-soft);">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 000 4h6a2 2 0 000-4M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </div>
+          <h3>Recommendations</h3>
+        </div>
+        <div class="rec-list">${recs.map((r,i)=>`<div class="rec-item"><div class="rec-n">${String(i+1).padStart(2,'0')}</div><span>${r}</span></div>`).join('')}</div>
+      </div>` : ''}
+
+      ${isoMaps.length ? `
+        <div class="sec-divider">
+          <span class="sec-label">
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            ISO 27001:2022
+          </span>
+          <div class="sec-line"></div>
+        </div>
+        <div class="mapping-grid">${isoMaps.map(mapCard).join('')}</div>` : ''}
+
+      ${socMaps.length ? `
+        <div class="sec-divider">
+          <span class="sec-label">
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            SOC 2 Trust Service Criteria
+          </span>
+          <div class="sec-line"></div>
+        </div>
+        <div class="mapping-grid">${socMaps.map(mapCard).join('')}</div>` : ''}
+    `;
+  }
+
+  async function analyzeEvidence() {
+    const name = document.getElementById('ev-name').value.trim() || 'Unnamed Evidence';
+    const text = document.getElementById('ev-text').value.trim();
+    const fw   = getFW();
+    if (!text)     { alert('Please enter evidence content.'); return; }
+    if (!fw.length){ alert('Select at least one framework.'); return; }
+
+    const btn = document.getElementById('btn-analyze');
+    btn.disabled = true;
+    document.getElementById('results-title').textContent = name;
+    showLoader('Claude is analyzing your evidence…');
+
+    try {
+      const full = await streamRequest('/api/analyze',
+        { evidence_name: name, evidence_text: text, frameworks: fw },
+        appendStream);
+      renderResults(name, parseJSON(full));
+    } catch(e) {
+      document.getElementById('results-area').innerHTML =
+        `<div style="padding:24px;"><div class="err-card">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          ${e.message}
+        </div></div>`;
+    } finally { btn.disabled = false; }
+  }
+
+  function addToLibrary() {
+    const name = document.getElementById('ev-name').value.trim() || `Evidence ${lib.length + 1}`;
+    const text = document.getElementById('ev-text').value.trim();
+    if (!text) { alert('Please enter evidence content.'); return; }
+    lib.push({ name, text });
+    renderLib();
+    document.getElementById('ev-name').value = '';
+    document.getElementById('ev-text').value = '';
+    switchTab('lib');
+  }
+
+  function renderLib() {
+    const n = lib.length;
+    document.getElementById('lib-count').textContent = n;
+    document.getElementById('nav-count').textContent = n;
+    document.getElementById('btn-package').disabled = n === 0;
+
+    if (!n) {
+      document.getElementById('lib-list').innerHTML = `
+        <div class="lib-empty">
+          <div class="lib-empty-icon">
+            <svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          </div>
+          <p>No evidence saved yet.</p>
+          <small>Use "Save to Library" to collect artifacts</small>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('lib-list').innerHTML = lib.map((ev, i) => `
+      <div class="ev-card" onclick="loadEv(${i})">
+        <div class="ev-card-name">${ev.name}</div>
+        <div class="ev-card-preview">${ev.text}</div>
+        <button class="ev-del" onclick="delEv(event,${i})">✕</button>
+      </div>`).join('');
+  }
+
+  function loadEv(i) {
+    document.getElementById('ev-name').value = lib[i].name;
+    document.getElementById('ev-text').value = lib[i].text;
+    switchTab('add');
+  }
+
+  function delEv(e, i) {
+    e.stopPropagation();
+    lib.splice(i, 1);
+    renderLib();
+  }
+
+  async function packageAll() {
+    if (!lib.length) return;
+    const fw  = getFW();
+    const btn = document.getElementById('btn-package');
+    btn.disabled = true;
+    document.getElementById('results-title').textContent = 'Full Compliance Report';
+    showLoader(`Packaging ${lib.length} evidence items…`);
+
+    try {
+      const full = await streamRequest('/api/package',
+        { evidence_items: lib, organization: 'Organization', audit_period: new Date().getFullYear() + ' Audit', frameworks: fw },
+        appendStream);
+      renderResults('Full Compliance Package Report', parseJSON(full));
+    } catch(e) {
+      document.getElementById('results-area').innerHTML =
+        `<div style="padding:24px;"><div class="err-card">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          ${e.message}
+        </div></div>`;
+    } finally { btn.disabled = lib.length === 0; }
+  }
+
+  function exportResults() {
+    if (!currentResults) return;
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([JSON.stringify(currentResults, null, 2)], { type: 'application/json' })),
+      download: `audit-package-${Date.now()}.json`,
+    });
+    a.click();
+  }
+
+  function clearResults() {
+    currentResults = null;
+    document.getElementById('results-title').textContent = 'Analysis Results';
+    document.getElementById('btn-export').style.display = 'none';
+    document.getElementById('results-area').innerHTML = `
+      <div class="welcome">
+        <div class="welcome-card">
+          <div class="welcome-icon-wrap">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+            </svg>
+          </div>
+          <h2>Map evidence to controls</h2>
+          <p>Paste an audit artifact, select your compliance frameworks, and Claude will identify every control it addresses with a coverage assessment.</p>
+          <div class="steps">
+            <div class="step"><div class="step-n">01</div><div class="step-t">Paste evidence content</div></div>
+            <div class="step"><div class="step-n">02</div><div class="step-t">Select frameworks</div></div>
+            <div class="step"><div class="step-n">03</div><div class="step-t">Review &amp; export</div></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderLib();
+</script>
+</body>
+</html>
