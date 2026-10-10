@@ -57,7 +57,18 @@ AuditPack compresses the mapping and gap-analysis phase from weeks to minutes.
 
 ---
 
-## How to Use It
+## Install (Windows)
+
+The easiest way: download **`AuditPack-Setup-1.0.0.exe`** and run it. No Python
+needed. See [docs/INSTALL-Windows.md](docs/INSTALL-Windows.md) for the step-by-step
+guide. On first launch the app asks for your own Anthropic API key and stores it
+encrypted on your machine.
+
+To build the installer yourself, or to run from source, read on.
+
+---
+
+## How to Use It (from source)
 
 ### Prerequisites
 
@@ -67,7 +78,7 @@ AuditPack compresses the mapping and gap-analysis phase from weeks to minutes.
 ### 1. Install dependencies
 
 ```bash
-cd "audit evidence packager"
+cd audit-evidence-packager
 pip install -r requirements.txt
 ```
 
@@ -158,20 +169,47 @@ The backend streams Claude's response token-by-token over Server-Sent Events so 
 python test_app.py
 ```
 
-40 tests covering input validation, SSE stream format, Unicode/XSS edge cases, large payloads, and the full controls data integrity.
+47 tests covering input validation, SSE stream format, Unicode/XSS edge cases, large payloads, the full controls data integrity, and the API-key settings and the encrypted key store.
 
 ---
 
 ## Project Structure
 
 ```
-audit evidence packager/
-├── app.py              # Flask backend — /api/analyze and /api/package endpoints
+audit-evidence-packager/
+├── app.py              # Flask backend — /api/analyze, /api/package, /api/settings
 ├── controls_data.py    # ISO 27001:2022 and SOC 2 control definitions
+├── key_store.py        # Saves the user's API key (Windows DPAPI-encrypted)
+├── paths.py            # Resource/user-data paths that work frozen or from source
 ├── index.html          # Frontend UI (served by Flask)
 ├── requirements.txt    # Python dependencies
-└── test_app.py         # Test suite (40 tests, no API key needed)
+├── test_app.py         # Test suite (47 tests, no API key needed)
+├── desktop/            # Windows installer build (launcher, PyInstaller spec, Inno Setup)
+└── docs/               # End-user install guide
 ```
+
+---
+
+## Building the Windows installer
+
+Requires Windows, Python 3.10–3.13 and [Inno Setup 6](https://jrsoftware.org/isdl.php)
+(`winget install JRSoftware.InnoSetup`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File desktopuild_windows.ps1
+```
+
+Output in `dist/`:
+
+- `installer/AuditPack-Setup-1.0.0.exe` — the installer to hand to users (~21 MB)
+- `AuditPack/` — the application folder
+- `AuditPack-windows-portable.zip` — no-install version
+
+How it works: `desktop/launcher.py` serves the Flask app on a private localhost
+port with waitress and opens it in a native WebView2 window (falling back to the
+default browser). PyInstaller bundles Python and every dependency, so users need
+nothing installed. The installer is unsigned, so Windows SmartScreen shows a
+warning until it is code-signed.
 
 ---
 

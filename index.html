@@ -196,6 +196,48 @@
     .user-info strong { display: block; font-size: 12px; font-weight: 600; color: #fff; }
     .user-info span   { font-size: 10.5px; color: rgba(255,255,255,.3); }
 
+    .settings-row {
+      width: 100%;
+      background: none;
+      border: none;
+      text-align: left;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .settings-row:hover { background: rgba(255,255,255,.06); }
+    .settings-row .user-info span.ok  { color: #3DDC9A; }
+    .settings-row .user-info span.bad { color: #FBBF24; }
+
+    /* SETTINGS DIALOG */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(9,6,26,.55);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--card); width: 100%; max-width: 440px;
+      border-radius: var(--radius); box-shadow: var(--shadow-lg);
+      padding: 24px;
+    }
+    .modal h2 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; margin-bottom: 6px; color: var(--text); }
+    .modal p  { font-size: 12.5px; line-height: 1.55; color: var(--text-2); margin-bottom: 14px; }
+    .modal input[type=password], .modal input[type=text] {
+      width: 100%; padding: 10px 12px; font-size: 13px;
+      border: 1px solid var(--border-md); border-radius: var(--radius-sm);
+      font-family: 'JetBrains Mono', monospace; color: var(--text);
+    }
+    .modal input:focus { outline: 2px solid var(--purple-glow); border-color: var(--purple); }
+    .modal .modal-msg { min-height: 18px; margin: 8px 0 0; font-size: 12px; }
+    .modal .modal-msg.err { color: var(--red); }
+    .modal .modal-msg.ok  { color: var(--green); }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions .btn { flex: 1; }
+    .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border-md); }
+    .btn-ghost:hover { border-color: var(--purple); color: var(--purple); }
+
     /* ─────────────────────────────────────── MAIN */
     .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
@@ -1024,13 +1066,15 @@
   <div class="sidebar-spacer"></div>
 
   <div class="sidebar-bottom">
-    <div class="user-row">
-      <div class="avatar">P</div>
-      <div class="user-info">
-        <strong>Patricia</strong>
-        <span>Compliance Analyst</span>
+    <button class="user-row settings-row" id="btn-settings" onclick="openSettings()" aria-label="Open settings">
+      <div class="avatar">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.78 7.78 5.5 5.5 0 017.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
       </div>
-    </div>
+      <div class="user-info">
+        <strong>Settings</strong>
+        <span id="key-status">Checking API key…</span>
+      </div>
+    </button>
   </div>
 </aside>
 
@@ -1183,9 +1227,101 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
+<!-- ═══════════════════════════════ SETTINGS DIALOG -->
+<div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="modal">
+    <h2 id="settings-title">Anthropic API key</h2>
+    <p>
+      AuditPack sends your evidence to Claude for analysis, using your own Anthropic API key.
+      The key is encrypted and stored on this computer only. Get one at
+      <strong>console.anthropic.com</strong>. API usage is billed to your Anthropic account.
+    </p>
+    <input type="password" id="key-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+    <div class="modal-msg" id="key-msg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="key-save" onclick="saveKey()">Save key</button>
+      <button class="btn btn-ghost" id="key-remove" onclick="removeKey()" style="display:none;">Remove key</button>
+      <button class="btn btn-ghost" onclick="closeSettings()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const lib = [];
   let currentResults = null;
+
+  // ── API key settings ────────────────────────────────────────────────
+  function setKeyStatus(configured) {
+    const el = document.getElementById('key-status');
+    el.textContent = configured ? 'API key saved' : 'API key needed';
+    el.className = configured ? 'ok' : 'bad';
+    document.getElementById('key-remove').style.display = configured ? '' : 'none';
+  }
+
+  function openSettings() {
+    document.getElementById('key-input').value = '';
+    setKeyMsg('', '');
+    document.getElementById('settings-modal').classList.add('open');
+    document.getElementById('key-input').focus();
+  }
+
+  function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('open');
+  }
+
+  function setKeyMsg(text, cls) {
+    const el = document.getElementById('key-msg');
+    el.textContent = text;
+    el.className = 'modal-msg ' + cls;
+  }
+
+  async function saveKey() {
+    const input = document.getElementById('key-input');
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: input.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setKeyMsg(data.error || 'Could not save the key.', 'err'); return; }
+      input.value = '';
+      setKeyStatus(true);
+      setKeyMsg('Key saved.', 'ok');
+      setTimeout(closeSettings, 700);
+    } catch (e) {
+      setKeyMsg('Could not reach the app: ' + e.message, 'err');
+    }
+  }
+
+  async function removeKey() {
+    try {
+      const res = await fetch('/api/settings', { method: 'DELETE' });
+      setKeyStatus((await res.json()).api_key_configured);
+      setKeyMsg('Key removed.', 'ok');
+    } catch (e) {
+      setKeyMsg('Could not remove the key: ' + e.message, 'err');
+    }
+  }
+
+  async function initSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      setKeyStatus(data.api_key_configured);
+      if (!data.api_key_configured) openSettings();   // first run
+    } catch (e) {
+      document.getElementById('key-status').textContent = 'Settings unavailable';
+    }
+  }
+
+  document.getElementById('key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveKey();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSettings();
+  });
+  initSettings();
 
   function setNav(el) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));

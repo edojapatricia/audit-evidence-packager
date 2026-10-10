@@ -11,3 +11,8 @@ Thumbs.db
 .claude/
 venv/
 .venv/
+
+# Desktop build
+.venv-build/
+build/
+dist/

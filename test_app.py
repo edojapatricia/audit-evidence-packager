@@ -495,6 +495,77 @@ class TestControlsData(unittest.TestCase):
         self.assertEqual(dupes, [], f"Duplicate SOC 2 IDs: {set(dupes)}")
 
 
+class TestSettingsEndpoint(unittest.TestCase):
+    """The in-app API key settings used by the desktop installer."""
+
+    def setUp(self):
+        import app as app_module
+        app_module.app.config["TESTING"] = True
+        self.client = app_module.app.test_client()
+        self.app_module = app_module
+        self._orig_key = app_module.client.api_key
+        self.addCleanup(setattr, app_module.client, "api_key", self._orig_key)
+
+    def test_get_reports_status_without_leaking_key(self):
+        self.app_module.client.api_key = "sk-ant-secret-value-1234567890"
+        r = self.client.get("/api/settings")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json(), {"api_key_configured": True})
+        self.assertNotIn(b"secret-value", r.data)
+
+    def test_get_reports_missing_key(self):
+        self.app_module.client.api_key = None
+        self.assertFalse(self.client.get("/api/settings").get_json()["api_key_configured"])
+
+    def test_save_rejects_malformed_keys(self):
+        for bad in ["", "   ", "hello", "sk-ant-short", "sk-ant-has space inside-1234567890", None, 123]:
+            with patch.object(self.app_module.key_store, "save_key") as save:
+                r = self.client.post("/api/settings", json={"api_key": bad})
+            self.assertEqual(r.status_code, 400, bad)
+            save.assert_not_called()
+
+    def test_save_accepts_valid_key_and_never_echoes_it(self):
+        good = "sk-ant-api03-" + "x" * 30
+        with patch.object(self.app_module.key_store, "save_key") as save:
+            r = self.client.post("/api/settings", json={"api_key": good})
+        self.assertEqual(r.status_code, 200)
+        save.assert_called_once_with(good)
+        self.assertEqual(self.app_module.client.api_key, good)
+        self.assertNotIn(good.encode(), r.data)
+
+    def test_analyze_without_key_streams_clear_error(self):
+        self.app_module.client.api_key = None
+        r = self.client.post("/api/analyze", json={"evidence_text": "policy text", "frameworks": ["ISO 27001"]})
+        events = list(_iter_sse_events(r))
+        self.assertEqual(events[0]["type"], "error")
+        self.assertIn("API key", events[0]["message"])
+
+    def test_package_without_key_streams_clear_error(self):
+        self.app_module.client.api_key = None
+        r = self.client.post("/api/package", json={"evidence_items": [{"name": "a", "text": "b"}]})
+        self.assertEqual(list(_iter_sse_events(r))[0]["type"], "error")
+
+
+class TestKeyStore(unittest.TestCase):
+    """Round-trip through the real encryption, in a throw-away directory."""
+
+    def test_round_trip_delete_and_corruption(self):
+        import tempfile
+        from pathlib import Path
+        import key_store
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(key_store, "user_data_dir", return_value=Path(tmp)):
+                self.assertEqual(key_store.load_key(), "")
+                key_store.save_key("  sk-ant-api03-roundtrip-0123456789  ")
+                self.assertEqual(key_store.load_key(), "sk-ant-api03-roundtrip-0123456789")
+                self.assertNotIn(b"roundtrip", (Path(tmp) / "api_key.dat").read_bytes())
+                (Path(tmp) / "api_key.dat").write_bytes(b"dpapi:not-valid-base64!!")
+                self.assertEqual(key_store.load_key(), "")
+                key_store.save_key("sk-ant-api03-again-0123456789")
+                key_store.delete_key()
+                self.assertEqual(key_store.load_key(), "")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import os
@@ -506,6 +577,8 @@ if __name__ == "__main__":
     suite.addTests(loader.loadTestsFromTestCase(TestFrontendRoute))
     suite.addTests(loader.loadTestsFromTestCase(TestAnalyzeEndpoint))
     suite.addTests(loader.loadTestsFromTestCase(TestPackageEndpoint))
+    suite.addTests(loader.loadTestsFromTestCase(TestSettingsEndpoint))
+    suite.addTests(loader.loadTestsFromTestCase(TestKeyStore))
 
     runner = unittest.TextTestRunner(verbosity=2, stream=sys.stdout)
     result = runner.run(suite)

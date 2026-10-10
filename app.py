@@ -2,11 +2,22 @@ import json
 import os
 from flask import Flask, request, jsonify, Response, send_from_directory
 import anthropic
+import key_store
 from controls_data import build_controls_reference
+from paths import resource_root
 
 app = Flask(__name__, static_folder=None)
 
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+# An ANTHROPIC_API_KEY environment variable wins; otherwise use the key the user
+# saved from the in-app Settings dialog (the desktop installer path).
+client = anthropic.Anthropic(
+    api_key=os.environ.get("ANTHROPIC_API_KEY") or key_store.load_key() or None
+)
+
+NO_KEY_MESSAGE = (
+    "No Anthropic API key is set. Open Settings (bottom-left) and paste your key."
+)
+
 
 CONTROLS_REFERENCE = build_controls_reference()
 
@@ -56,7 +67,31 @@ def sse(payload: dict) -> str:
 
 @app.route("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return send_from_directory(resource_root(), "index.html")
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    # Report only whether a key exists; the key itself is never sent back.
+    return jsonify({"api_key_configured": bool(client.api_key)})
+
+
+@app.route("/api/settings", methods=["POST"])
+def save_settings():
+    data = request.get_json(silent=True) or {}
+    api_key = str(data.get("api_key", "")).strip()
+    if not api_key.startswith("sk-ant-") or len(api_key) < 20 or any(c.isspace() for c in api_key):
+        return jsonify({"error": "That doesn't look like an Anthropic API key (it starts with sk-ant-)."}), 400
+    key_store.save_key(api_key)
+    client.api_key = api_key
+    return jsonify({"api_key_configured": True})
+
+
+@app.route("/api/settings", methods=["DELETE"])
+def delete_settings():
+    key_store.delete_key()
+    client.api_key = os.environ.get("ANTHROPIC_API_KEY") or None
+    return get_settings()
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -78,6 +113,9 @@ def analyze():
     )
 
     def generate():
+        if not client.api_key:
+            yield sse({"type": "error", "message": NO_KEY_MESSAGE})
+            return
         try:
             with client.messages.stream(
                 model="claude-opus-4-7",
@@ -127,6 +165,9 @@ def package():
     )
 
     def generate():
+        if not client.api_key:
+            yield sse({"type": "error", "message": NO_KEY_MESSAGE})
+            return
         try:
             with client.messages.stream(
                 model="claude-opus-4-7",
@@ -146,4 +187,4 @@ def package():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=os.environ.get("AUDITPACK_DEBUG") == "1", port=5000)

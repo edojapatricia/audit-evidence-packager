@@ -1,0 +1,7 @@
+# Build-time and desktop-only dependencies.
+# Installed on top of the app's requirements.txt inside the build venv.
+
+pyinstaller>=6.11
+waitress>=3.0          # production WSGI server used instead of Flask's dev server
+pywebview>=5.3         # native window (WebView2 on Windows)
+pillow>=10.0           # only for desktop/make_icons.py
