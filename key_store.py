@@ -11,6 +11,7 @@ import base64
 import ctypes
 import os
 import sys
+import uuid
 from ctypes import wintypes
 from pathlib import Path
 
@@ -79,3 +80,23 @@ def delete_key() -> None:
     path = _key_path()
     if path.exists():
         path.unlink()
+
+
+_INSTALL_FILE = "install_id.txt"
+
+
+def get_install_id() -> str:
+    """Anonymous random id for this install, used only to count free-trial uses.
+
+    It is 32 random hex characters, not derived from the user or machine.
+    """
+    path = user_data_dir() / _INSTALL_FILE
+    try:
+        value = path.read_text(encoding="ascii").strip()
+        if len(value) == 32 and all(c in "0123456789abcdef" for c in value):
+            return value
+    except OSError:
+        pass
+    value = uuid.uuid4().hex
+    path.write_text(value, encoding="ascii")
+    return value

@@ -1,0 +1,21 @@
+name = "auditpack-trial-proxy"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Create the namespace once:  npx wrangler kv namespace create TRIAL
+# then paste the id it prints below.
+[[kv_namespaces]]
+binding = "TRIAL"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Limits (all optional; these are the defaults). Tune to your budget.
+[vars]
+TRIAL_PER_INSTALL = "3"      # free analyses per install
+DAILY_PER_IP     = "10"      # per network address per day
+DAILY_GLOBAL     = "150"     # total trial analyses per day, across everyone
+TRIAL_MAX_TOKENS = "12000"   # output ceiling per analysis
+MAX_BODY_BYTES   = "200000"  # largest request accepted
+TRIAL_MODEL      = "claude-haiku-5-5"   # forced model; the app cannot override it
+
+# The AI key is NOT here. Add it as a secret, never in a file:
+#   npx wrangler secret put ANTHROPIC_API_KEY

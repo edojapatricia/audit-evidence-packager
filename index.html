@@ -1230,11 +1230,12 @@
 <!-- ═══════════════════════════════ SETTINGS DIALOG -->
 <div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="modal">
-    <h2 id="settings-title">Anthropic API key</h2>
+    <h2 id="settings-title">API key</h2>
+    <p id="trial-note"></p>
     <p>
-      AuditPack sends your evidence to Claude for analysis, using your own Anthropic API key.
-      The key is encrypted and stored on this computer only. Get one at
-      <strong>console.anthropic.com</strong>. API usage is billed to your Anthropic account.
+      AuditPack sends your evidence to a cloud AI service for analysis. After the free trial,
+      add your own API key. The key is encrypted and stored on this computer only, and usage is
+      billed to your own account with the AI provider.
     </p>
     <input type="password" id="key-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
     <div class="modal-msg" id="key-msg"></div>
@@ -1251,11 +1252,27 @@
   let currentResults = null;
 
   // ── API key settings ────────────────────────────────────────────────
-  function setKeyStatus(configured) {
+  // `data` is the /api/settings payload: { api_key_configured, trial }.
+  function setKeyStatus(data) {
+    const configured = !!data.api_key_configured;
+    const trial = data.trial;
     const el = document.getElementById('key-status');
-    el.textContent = configured ? 'API key saved' : 'API key needed';
-    el.className = configured ? 'ok' : 'bad';
+    const note = document.getElementById('trial-note');
+    if (configured) {
+      el.textContent = 'API key saved'; el.className = 'ok';
+      note.textContent = '';
+    } else if (trial && trial.available) {
+      el.textContent = 'Free trial: ' + trial.remaining + ' left'; el.className = 'ok';
+      note.textContent = 'You have ' + trial.remaining + ' of ' + trial.limit + ' free analyses left. No key needed yet.';
+    } else {
+      el.textContent = 'API key needed'; el.className = 'bad';
+      note.textContent = trial ? 'Your free trial is used up or unavailable right now.' : '';
+    }
     document.getElementById('key-remove').style.display = configured ? '' : 'none';
+  }
+
+  async function refreshKeyStatus() {
+    try { setKeyStatus(await (await fetch('/api/settings')).json()); } catch (e) { /* keep last status */ }
   }
 
   function openSettings() {
@@ -1286,7 +1303,7 @@
       const data = await res.json();
       if (!res.ok) { setKeyMsg(data.error || 'Could not save the key.', 'err'); return; }
       input.value = '';
-      setKeyStatus(true);
+      setKeyStatus({ api_key_configured: true });
       setKeyMsg('Key saved.', 'ok');
       setTimeout(closeSettings, 700);
     } catch (e) {
@@ -1297,7 +1314,7 @@
   async function removeKey() {
     try {
       const res = await fetch('/api/settings', { method: 'DELETE' });
-      setKeyStatus((await res.json()).api_key_configured);
+      setKeyStatus(await res.json());
       setKeyMsg('Key removed.', 'ok');
     } catch (e) {
       setKeyMsg('Could not remove the key: ' + e.message, 'err');
@@ -1308,8 +1325,9 @@
     try {
       const res = await fetch('/api/settings');
       const data = await res.json();
-      setKeyStatus(data.api_key_configured);
-      if (!data.api_key_configured) openSettings();   // first run
+      setKeyStatus(data);
+      // First run: only ask for a key if there is no key and no free trial to use.
+      if (!data.api_key_configured && !(data.trial && data.trial.available)) openSettings();
     } catch (e) {
       document.getElementById('key-status').textContent = 'Settings unavailable';
     }
@@ -1380,10 +1398,18 @@
         if (!line.startsWith('data: ')) continue;
         let d;
         try { d = JSON.parse(line.slice(6)); } catch { continue; }
-        if (d.type === 'error') throw new Error(d.message || 'Server error');
+        if (d.type === 'error') {
+          if (d.code === 'trial_exhausted' || d.code === 'trial_unavailable') {
+            await refreshKeyStatus();
+            openSettings();
+            setKeyMsg(d.message || 'Free trial unavailable. Add your own API key to continue.', 'err');
+          }
+          throw new Error(d.message || 'Server error');
+        }
         if (d.type === 'text') { full += d.content; onChunk(d.content); }
       }
     }
+    refreshKeyStatus();   // update the "free trial: N left" counter
     return full;
   }
 

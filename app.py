@@ -1,8 +1,10 @@
 import json
 import os
+import urllib.request
 from flask import Flask, request, jsonify, Response, send_from_directory
 import anthropic
 import key_store
+import trial_config
 from controls_data import build_controls_reference
 from paths import resource_root
 
@@ -15,8 +17,91 @@ client = anthropic.Anthropic(
 )
 
 NO_KEY_MESSAGE = (
-    "No Anthropic API key is set. Open Settings (bottom-left) and paste your key."
+    "No API key is set. Open Settings (bottom-left) and paste your key."
 )
+
+# Free trial: with no key of their own, users go through a small proxy that holds
+# the real key as a server-side secret. The app only ever knows the proxy address
+# and an anonymous install id; no AI key is shipped inside the app.
+PROXY_URL = (os.environ.get("AUDITPACK_PROXY_URL") or trial_config.PROXY_URL).rstrip("/")
+_trial_client = None
+
+
+def _get_trial_client():
+    global _trial_client
+    if _trial_client is None and PROXY_URL:
+        _trial_client = anthropic.Anthropic(
+            api_key="free-trial",  # placeholder; the proxy supplies the real key
+            base_url=PROXY_URL,
+            default_headers={"X-Install-Id": key_store.get_install_id()},
+            max_retries=0,
+        )
+    return _trial_client
+
+
+def _active_client():
+    """The user's own key wins; otherwise the free-trial proxy; otherwise None."""
+    if client.api_key:
+        return client
+    return _get_trial_client()
+
+
+def _trial_status():
+    """Remaining free analyses, or None when the trial is not configured."""
+    if not PROXY_URL:
+        return None
+    try:
+        req = urllib.request.Request(
+            PROXY_URL + "/v1/quota", headers={"X-Install-Id": key_store.get_install_id()}
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return {
+            "available": bool(data.get("available", True)) and int(data.get("remaining", 0)) > 0,
+            "remaining": int(data.get("remaining", 0)),
+            "limit": int(data.get("limit", 0)),
+        }
+    except Exception:
+        return {"available": False, "remaining": 0, "limit": 0}
+
+
+def _error_event(exc: Exception) -> dict:
+    """Turn an exception into an SSE error event, keeping trial codes for the UI."""
+    event = {"type": "error", "message": str(exc)}
+    body = getattr(exc, "body", None)
+    err = body.get("error") if isinstance(body, dict) else None
+    if isinstance(err, dict):
+        if err.get("message"):
+            event["message"] = err["message"]
+        if err.get("type") in ("trial_exhausted", "trial_unavailable"):
+            event["code"] = err["type"]
+    return event
+
+
+def _stream_analysis(user_message: str, max_tokens: int):
+    """SSE response that streams the model's answer for one request."""
+
+    def generate():
+        active = _active_client()
+        if active is None:
+            yield sse({"type": "error", "message": NO_KEY_MESSAGE})
+            return
+        try:
+            with active.messages.stream(
+                model="claude-opus-4-7",
+                max_tokens=max_tokens,
+                thinking={"type": "adaptive"},
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_message}],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield sse({"type": "text", "content": text})
+            yield sse({"type": "done"})
+        except Exception as exc:
+            yield sse(_error_event(exc))
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 CONTROLS_REFERENCE = build_controls_reference()
@@ -73,7 +158,10 @@ def index():
 @app.route("/api/settings", methods=["GET"])
 def get_settings():
     # Report only whether a key exists; the key itself is never sent back.
-    return jsonify({"api_key_configured": bool(client.api_key)})
+    payload = {"api_key_configured": bool(client.api_key)}
+    if not payload["api_key_configured"]:
+        payload["trial"] = _trial_status()
+    return jsonify(payload)
 
 
 @app.route("/api/settings", methods=["POST"])
@@ -81,7 +169,7 @@ def save_settings():
     data = request.get_json(silent=True) or {}
     api_key = str(data.get("api_key", "")).strip()
     if not api_key.startswith("sk-ant-") or len(api_key) < 20 or any(c.isspace() for c in api_key):
-        return jsonify({"error": "That doesn't look like an Anthropic API key (it starts with sk-ant-)."}), 400
+        return jsonify({"error": "That doesn't look like a valid API key (it starts with sk-ant-)."}), 400
     key_store.save_key(api_key)
     client.api_key = api_key
     return jsonify({"api_key_configured": True})
@@ -112,26 +200,7 @@ def analyze():
         f"Respond with ONLY the JSON object. No markdown, no explanation."
     )
 
-    def generate():
-        if not client.api_key:
-            yield sse({"type": "error", "message": NO_KEY_MESSAGE})
-            return
-        try:
-            with client.messages.stream(
-                model="claude-opus-4-7",
-                max_tokens=16000,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_message}],
-            ) as stream:
-                for text in stream.text_stream:
-                    yield sse({"type": "text", "content": text})
-            yield sse({"type": "done"})
-        except Exception as exc:
-            yield sse({"type": "error", "message": str(exc)})
-
-    return Response(generate(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return _stream_analysis(user_message, 16000)
 
 
 @app.route("/api/package", methods=["POST"])
@@ -164,26 +233,7 @@ def package():
         f"Respond with ONLY the JSON object. No markdown, no explanation."
     )
 
-    def generate():
-        if not client.api_key:
-            yield sse({"type": "error", "message": NO_KEY_MESSAGE})
-            return
-        try:
-            with client.messages.stream(
-                model="claude-opus-4-7",
-                max_tokens=32000,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_message}],
-            ) as stream:
-                for text in stream.text_stream:
-                    yield sse({"type": "text", "content": text})
-            yield sse({"type": "done"})
-        except Exception as exc:
-            yield sse({"type": "error", "message": str(exc)})
-
-    return Response(generate(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return _stream_analysis(user_message, 32000)
 
 
 if __name__ == "__main__":

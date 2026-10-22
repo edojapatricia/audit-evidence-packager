@@ -1,0 +1,2 @@
+﻿{"name":"auditpack-trial-proxy","private":true,"type":"module","scripts":{"test":"node --test test/proxy.test.mjs","deploy":"wrangler deploy"}}
+

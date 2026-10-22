@@ -566,6 +566,93 @@ class TestKeyStore(unittest.TestCase):
                 self.assertEqual(key_store.load_key(), "")
 
 
+class TestFreeTrial(unittest.TestCase):
+    """Free-trial path: no key shipped in the app, calls go through a proxy."""
+
+    def setUp(self):
+        import app as app_module
+        app_module.app.config["TESTING"] = True
+        self.client = app_module.app.test_client()
+        self.app_module = app_module
+        self.addCleanup(setattr, app_module.client, "api_key", app_module.client.api_key)
+        self.addCleanup(setattr, app_module, "PROXY_URL", app_module.PROXY_URL)
+        app_module.client.api_key = None
+        app_module.PROXY_URL = "https://proxy.example"
+        self.trial = MagicMock()
+        patcher = patch.object(app_module, "_get_trial_client", return_value=self.trial)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _post_analyze(self):
+        return self.client.post("/api/analyze", json={"evidence_text": "policy text", "frameworks": ["ISO 27001"]})
+
+    def test_without_a_key_the_trial_client_is_used(self):
+        self.trial.messages.stream.return_value = _make_mock_stream("{}")
+        r = self._post_analyze()
+        self.assertEqual(_read_sse(r), "{}")
+        self.trial.messages.stream.assert_called_once()
+
+    def test_own_key_wins_over_trial(self):
+        self.app_module.client.api_key = "sk-ant-api03-" + "y" * 30
+        with patch.object(self.app_module.client.messages, "stream", return_value=_make_mock_stream("{}")) as own:
+            self._post_analyze()
+        own.assert_called_once()
+        self.trial.messages.stream.assert_not_called()
+
+    def test_no_key_and_no_proxy_still_gives_the_key_error(self):
+        self.app_module.PROXY_URL = ""
+        with patch.object(self.app_module, "_get_trial_client", return_value=None):
+            events = list(_iter_sse_events(self._post_analyze()))
+        self.assertEqual(events[0]["type"], "error")
+        self.assertIn("API key", events[0]["message"])
+
+    def test_trial_exhausted_is_reported_with_a_code(self):
+        exc = Exception("Error code: 402")
+        exc.body = {"type": "error", "error": {"type": "trial_exhausted", "message": "Free trial used up."}}
+        self.trial.messages.stream.side_effect = exc
+        event = list(_iter_sse_events(self._post_analyze()))[0]
+        self.assertEqual(event["type"], "error")
+        self.assertEqual(event["code"], "trial_exhausted")
+        self.assertEqual(event["message"], "Free trial used up.")
+
+    def test_settings_reports_remaining_trial(self):
+        payload = json.dumps({"limit": 3, "remaining": 2, "available": True}).encode()
+        resp = MagicMock()
+        resp.__enter__.return_value.read.return_value = payload
+        with patch.object(self.app_module.key_store, "get_install_id", return_value="a" * 32), \
+             patch.object(self.app_module.urllib.request, "urlopen", return_value=resp):
+            data = self.client.get("/api/settings").get_json()
+        self.assertFalse(data["api_key_configured"])
+        self.assertEqual(data["trial"], {"available": True, "remaining": 2, "limit": 3})
+
+    def test_settings_when_proxy_unreachable_is_unavailable_not_an_error(self):
+        with patch.object(self.app_module.key_store, "get_install_id", return_value="a" * 32), \
+             patch.object(self.app_module.urllib.request, "urlopen", side_effect=OSError("offline")):
+            r = self.client.get("/api/settings")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.get_json()["trial"]["available"])
+
+    def test_install_id_is_random_stable_hex(self):
+        import tempfile
+        from pathlib import Path
+        import key_store
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(key_store, "user_data_dir", return_value=Path(tmp)):
+                first = key_store.get_install_id()
+                self.assertRegex(first, r"^[0-9a-f]{32}$")
+                self.assertEqual(key_store.get_install_id(), first)
+                (Path(tmp) / "install_id.txt").write_text("garbage")
+                self.assertRegex(key_store.get_install_id(), r"^[0-9a-f]{32}$")
+
+    def test_no_api_key_is_shipped_inside_the_app(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).parent
+        for name in ["app.py", "key_store.py", "trial_config.py", "paths.py", "controls_data.py", "index.html"]:
+            text = (root / name).read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"sk-ant-[A-Za-z0-9_\-]{20,}", text), f"key-like string in {name}")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import os
@@ -579,6 +666,7 @@ if __name__ == "__main__":
     suite.addTests(loader.loadTestsFromTestCase(TestPackageEndpoint))
     suite.addTests(loader.loadTestsFromTestCase(TestSettingsEndpoint))
     suite.addTests(loader.loadTestsFromTestCase(TestKeyStore))
+    suite.addTests(loader.loadTestsFromTestCase(TestFreeTrial))
 
     runner = unittest.TextTestRunner(verbosity=2, stream=sys.stdout)
     result = runner.run(suite)
